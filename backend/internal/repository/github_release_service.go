@@ -97,7 +97,7 @@ func (c *githubReleaseClient) newAPIRequest(ctx context.Context, url string) (*h
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("User-Agent", "Sub2API-Updater")
+	req.Header.Set("User-Agent", "Release-Updater/1.0")
 	if c.updateGitHubToken != "" && isGitHubAPIURL(req.URL) {
 		req.Header.Set("Authorization", "Bearer "+c.updateGitHubToken)
 	}

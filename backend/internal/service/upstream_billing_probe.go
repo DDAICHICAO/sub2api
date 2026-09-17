@@ -13,6 +13,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -354,6 +355,9 @@ func (s *UpstreamBillingProbeService) runLoop() {
 
 // RunDue executes at most one bounded batch of due accounts.
 func (s *UpstreamBillingProbeService) RunDue(ctx context.Context) error {
+	if strings.EqualFold(os.Getenv("UPSTREAM_BILLING_PROBE_DISABLED"), "true") {
+		return nil
+	}
 	if s == nil || s.accountRepo == nil {
 		return nil
 	}
@@ -615,6 +619,10 @@ func (s *UpstreamBillingProbeService) SetAccountEnabled(ctx context.Context, acc
 }
 
 func (s *UpstreamBillingProbeService) probeLoadedAccount(ctx context.Context, account *Account, intervalMinutes int) (*UpstreamBillingProbeSnapshot, error) {
+	// Includes manual probes: the proprietary URL itself identifies the software.
+	if strings.EqualFold(os.Getenv("UPSTREAM_BILLING_PROBE_DISABLED"), "true") {
+		return nil, ErrUpstreamBillingProbeUnavailable
+	}
 	now := s.currentTime().UTC()
 	if s.accountTestService == nil || s.accountTestService.httpUpstream == nil {
 		return s.persistProbeFailure(ctx, account, intervalMinutes, now, 0, "transport_unavailable", 0)

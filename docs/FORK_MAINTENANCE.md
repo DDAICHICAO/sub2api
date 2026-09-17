@@ -80,3 +80,26 @@ git push origin codex/my-feature
 - 不批量推送上游 tags：现有 Release workflow 会被 `v*` 标签触发。
 - 自有版本发布前单独配置镜像仓库、发布权限和 secrets；上游镜像不会包含二开代码。
 - 初始同步仅验证 Git 历史、远程和文档，不代表已完成应用测试或生产部署。
+
+## 自有发行版（从 0.2.6 开始）
+
+- 更新检查、回滚版本列表、安装脚本和页面上的版本链接使用 `DDAICHICAO/sub2api`。镜像使用 `ghcr.io/ddaichicao/sub2api`，生产应固定版本，不使用作者镜像。
+- `main` 仍是作者基线；构建和手动发布必须选择 `codex/my-feature` 对应的已验证提交/tag。Release workflow 的前后端 checkout 都绑定发布 tag，避免混入其他分支。
+- 正式发布使用完整 Release（`simple_release=false`），提供平台归档和 `checksums.txt`，才能使用页面内的二进制更新。现有二进制/归档名称保留 `sub2api` 以兼容更新器，不属于外发请求标识。
+- 发往上游的自动生成提示词标签、保留 Python 工具别名、模型描述、Vertex 批任务默认名、Grok/Ollama 辅助请求 UA 已改成中性值。Grok OAuth 不再附加可选的项目 referrer。
+- HTTP 上游传输会去掉 `X-Sub2API-*` 内部请求头；鉴权、请求 ID、用户正文、工具结果和上游协议要求的身份字段保留。
+- 自有 Compose 默认 `UPSTREAM_BILLING_PROBE_DISABLED=true`，同时阻止定时和手动 `/v1/sub2api/billing` 探测。关闭该功能不删除已有余额数据；需要该专用协议时必须明确接受它暴露软件特征后再关闭此开关。
+- 更新 Redis 缓存使用自有命名空间，并校验缓存里的 repository；不会从作者遗留缓存回退安装作者版本。
+- 保留 LICENSE、作者声明、Go module 路径、数据库表名、内部稳定身份哈希种子。删除名称不能保证上游无法通过行为识别实现，历史用户内容也不会被批量替换。
+
+### 保留数据的容器升级
+
+先保存旧镜像、Compose/.env、应用数据、Redis 快照，并使用数据库容器的 `pg_dump -Fc` 备份、`pg_restore --list` 校验。确认新旧版本的迁移差异以及真实 PostgreSQL 数据目录；不能仅根据宿主机目录名称判断。
+
+只修改现有 Compose 中应用服务的镜像引用，保留服务名、项目名、网络、所有挂载和环境密钥。使用现有完整 Compose 文件组合执行：
+
+```bash
+docker compose -f docker-compose.yml -f compose.proxy.yml up -d --no-deps --pull never sub2api
+```
+
+不要执行 `down -v`、清空持久化目录、重建数据库或重置初始化配置。切换前后比较受保护表的记录数/哈希、挂载和数据库/Redis/Caddy 容器 ID。回滚只需恢复备份的 Compose/.env 并用旧镜像重建应用；有迁移时须另行评估数据库恢复，不能盲目覆盖运行中的数据。

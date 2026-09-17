@@ -12,7 +12,7 @@
 
 services:
   sub2api:
-    image: weishaw/sub2api:latest
+    image: ghcr.io/ddaichicao/sub2api:latest
     container_name: sub2api
     restart: unless-stopped
     security_opt:
@@ -32,6 +32,7 @@ services:
       # Auto Setup
       # =======================================================================
       - AUTO_SETUP=true
+      - UPSTREAM_BILLING_PROBE_DISABLED=${UPSTREAM_BILLING_PROBE_DISABLED:-true}
 
       # =======================================================================
       # Server Configuration
