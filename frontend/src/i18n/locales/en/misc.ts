@@ -57,6 +57,7 @@ export default {
     deployDocker: 'Docker',
     dockerEditCompose: 'Edit the image tag in docker-compose.yml',
     dockerRecreate: 'Recreate the container'
+    ,dockerUpdateHint: 'For Docker deployments, pull the new image and recreate the container so the image tag matches the running version.'
   },
 
   // Recharge / Subscription Page

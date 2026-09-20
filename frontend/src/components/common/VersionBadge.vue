@@ -292,6 +292,18 @@
               </div>
 
               <!-- Priority 4: Update available for release build - show update button -->
+              <div v-else-if="hasUpdate && isDockerDeployment" class="space-y-2">
+                <div class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700 dark:border-blue-800/50 dark:bg-blue-900/20 dark:text-blue-300">
+                  {{ t('version.dockerUpdateHint') }}
+                </div>
+                <pre class="overflow-x-auto rounded-lg bg-gray-900 p-3 text-xs text-gray-100">{{ dockerUpdateCommand }}</pre>
+                <button
+                  @click="copyToClipboard(dockerUpdateCommand)"
+                  class="w-full rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-dark-600 dark:text-dark-200 dark:hover:bg-dark-700"
+                >{{ copied ? t('version.copied') : t('version.copyCommand') }}</button>
+              </div>
+
+              <!-- Priority 5: Update available for release binary - show update button -->
               <div v-else-if="hasUpdate && isReleaseBuild" class="space-y-2">
                 <!-- Update info card -->
                 <div
@@ -730,6 +742,10 @@ const activeManualCommand = computed(() =>
 
 // Only show update check for release builds (binary/docker deployment)
 const isReleaseBuild = computed(() => buildType.value === 'release')
+const isDockerDeployment = computed(() => appStore.deploymentMode === 'docker')
+const dockerUpdateCommand = computed(() =>
+  `docker compose pull sub2api\ndocker compose up -d sub2api`
+)
 
 function toggleDropdown() {
   dropdownOpen.value = !dropdownOpen.value

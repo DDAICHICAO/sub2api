@@ -56,6 +56,7 @@ export default {
     deployDocker: 'Docker',
     dockerEditCompose: '修改 docker-compose.yml 中的镜像版本',
     dockerRecreate: '重新创建容器'
+    ,dockerUpdateHint: 'Docker 部署请拉取新镜像并重新创建容器，避免镜像标签与实际版本不一致。'
   },
 
   // Recharge / Subscription Page

@@ -65,6 +65,7 @@ type UpdateService struct {
 	githubClient   GitHubReleaseClient
 	currentVersion string
 	buildType      string // "source" for manual builds, "release" for CI builds
+	deploymentMode string // "docker" uses image replacement; "binary" supports in-place updates
 }
 
 // NewUpdateService creates a new UpdateService
@@ -74,7 +75,15 @@ func NewUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, versi
 		githubClient:   githubClient,
 		currentVersion: version,
 		buildType:      buildType,
+		deploymentMode: detectDeploymentMode(),
 	}
+}
+
+func detectDeploymentMode() string {
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return "docker"
+	}
+	return "binary"
 }
 
 // UpdateInfo contains update information
@@ -85,7 +94,8 @@ type UpdateInfo struct {
 	ReleaseInfo    *ReleaseInfo `json:"release_info,omitempty"`
 	Cached         bool         `json:"cached"`
 	Warning        string       `json:"warning,omitempty"`
-	BuildType      string       `json:"build_type"` // "source" or "release"
+	BuildType      string       `json:"build_type"`      // "source" or "release"
+	DeploymentMode string       `json:"deployment_mode"` // "docker" or "binary"
 }
 
 // ReleaseInfo contains GitHub release details
@@ -152,6 +162,7 @@ func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInf
 			HasUpdate:      false,
 			Warning:        err.Error(),
 			BuildType:      s.buildType,
+			DeploymentMode: s.deploymentMode,
 		}, nil
 	}
 
@@ -427,8 +438,9 @@ func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, er
 			HTMLURL:     release.HTMLURL,
 			Assets:      assets,
 		},
-		Cached:    false,
-		BuildType: s.buildType,
+		Cached:         false,
+		BuildType:      s.buildType,
+		DeploymentMode: s.deploymentMode,
 	}, nil
 }
 
@@ -624,6 +636,7 @@ func (s *UpdateService) getFromCache(ctx context.Context) (*UpdateInfo, error) {
 		ReleaseInfo:    cached.ReleaseInfo,
 		Cached:         true,
 		BuildType:      s.buildType,
+		DeploymentMode: s.deploymentMode,
 	}, nil
 }
 
