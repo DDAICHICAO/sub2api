@@ -54,9 +54,11 @@ export default {
     rollbackSourceHint: '源码构建不支持在线回退',
     deployScript: '脚本部署',
     deployDocker: 'Docker',
-    dockerEditCompose: '修改 docker-compose.yml 中的镜像版本',
-    dockerRecreate: '重新创建容器'
-    ,dockerUpdateHint: 'Docker 部署请拉取新镜像并重新创建容器，避免镜像标签与实际版本不一致。'
+    dockerEditCompose: '先修改 Compose 及覆盖文件中的 sub2api 镜像版本',
+    dockerCheckEffective: '在部署目录运行；确认最终镜像是下方目标，否则先修正 COMPOSE_FILE 覆盖配置，不要继续',
+    dockerExpectedImage: '应显示',
+    dockerRecreate: '重新创建容器',
+    dockerUpdateHint: 'Docker 部署请拉取新镜像并重新创建容器，避免镜像标签与实际版本不一致。'
   },
 
   // Recharge / Subscription Page

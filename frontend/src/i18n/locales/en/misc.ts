@@ -55,9 +55,11 @@ export default {
     rollbackSourceHint: 'Online rollback is not available for source builds',
     deployScript: 'Script',
     deployDocker: 'Docker',
-    dockerEditCompose: 'Edit the image tag in docker-compose.yml',
-    dockerRecreate: 'Recreate the container'
-    ,dockerUpdateHint: 'For Docker deployments, pull the new image and recreate the container so the image tag matches the running version.'
+    dockerEditCompose: 'First edit the sub2api image tag in Compose and all override files',
+    dockerCheckEffective: 'Run in the deployment directory; stop if the effective image differs and fix COMPOSE_FILE overrides first',
+    dockerExpectedImage: 'Expected image',
+    dockerRecreate: 'Recreate the container',
+    dockerUpdateHint: 'For Docker deployments, pull the new image and recreate the container so the image tag matches the running version.'
   },
 
   // Recharge / Subscription Page

@@ -232,7 +232,7 @@
               </div>
 
               <!-- Priority 3: Update available for source build - show git pull hint -->
-              <div v-else-if="hasUpdate && !isReleaseBuild" class="space-y-2">
+              <div v-else-if="hasUpdate && !isReleaseBuild && !isDockerDeployment" class="space-y-2">
                 <a
                   v-if="releaseInfo?.html_url && releaseInfo.html_url !== '#'"
                   :href="releaseInfo.html_url"
@@ -585,7 +585,7 @@
                                 :stroke-width="2"
                                 class="mt-px flex-shrink-0"
                               />
-                              {{ t('version.rollbackWarning') }}
+                              {{ t(isDockerDeployment ? 'version.dockerUpdateHint' : 'version.rollbackWarning') }}
                             </p>
 
                             <p
@@ -596,6 +596,7 @@
                             </p>
 
                             <button
+                              v-if="!isDockerDeployment"
                               @click="handleRollback"
                               :disabled="rollingBack"
                               class="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
@@ -714,7 +715,9 @@ const { copied, copyToClipboard } = useClipboard()
 // docker deployments pin the image tag instead
 const manualTab = ref<'script' | 'docker'>('script')
 
-const manualTabs = computed(() => [
+const manualTabs = computed(() => isDockerDeployment.value ? [
+  { key: 'docker' as const, label: t('version.deployDocker') }
+] : [
   { key: 'script' as const, label: t('version.deployScript') },
   { key: 'docker' as const, label: t('version.deployDocker') }
 ])
@@ -725,26 +728,27 @@ const scriptRollbackCommand = computed(() => {
   return `curl -sSL https://raw.githubusercontent.com/${GITHUB_REPO}/${tag}/deploy/install.sh | sudo bash -s -- rollback ${tag}`
 })
 
-const dockerRollbackCommand = computed(() => {
-  if (!selectedRollbackVersion.value) return ''
-  return [
-    `# ${t('version.dockerEditCompose')}`,
-    `image: ${DOCKER_IMAGE}:${selectedRollbackVersion.value}`,
-    '',
-    `# ${t('version.dockerRecreate')}`,
-    'docker compose up -d'
-  ].join('\n')
-})
-
-const activeManualCommand = computed(() =>
-  manualTab.value === 'docker' ? dockerRollbackCommand.value : scriptRollbackCommand.value
-)
-
-// Only show update check for release builds (binary/docker deployment)
+// Docker operations use one version-pinned recipe for both update and rollback.
 const isReleaseBuild = computed(() => buildType.value === 'release')
 const isDockerDeployment = computed(() => appStore.deploymentMode === 'docker')
-const dockerUpdateCommand = computed(() =>
-  `docker compose pull sub2api\ndocker compose up -d sub2api`
+function dockerImageInstructions(version: string): string {
+  if (!/^\d+\.\d+\.\d+$/.test(version)) return ''
+  return [
+    `# ${t('version.dockerEditCompose')}`,
+    `# image: ${DOCKER_IMAGE}:${version}`,
+    `# ${t('version.dockerCheckEffective')}`,
+    'docker compose config --images',
+    `# ${t('version.dockerExpectedImage')}: ${DOCKER_IMAGE}:${version}`,
+    'docker compose pull sub2api',
+    'docker compose up -d --no-deps sub2api',
+    'docker compose ps sub2api',
+    'docker compose exec -T sub2api /app/sub2api --version'
+  ].join('\n')
+}
+const dockerRollbackCommand = computed(() => dockerImageInstructions(selectedRollbackVersion.value))
+const dockerUpdateCommand = computed(() => dockerImageInstructions(latestVersion.value))
+const activeManualCommand = computed(() =>
+  isDockerDeployment.value || manualTab.value === 'docker' ? dockerRollbackCommand.value : scriptRollbackCommand.value
 )
 
 function toggleDropdown() {
@@ -768,7 +772,7 @@ async function refreshVersion(force = true) {
 }
 
 async function handleUpdate() {
-  if (updating.value) return
+  if (updating.value || isDockerDeployment.value) return
 
   updating.value = true
   updateError.value = ''
@@ -795,7 +799,7 @@ function resetRollbackState() {
   rollbackVersionsError.value = ''
   selectedRollbackVersion.value = ''
   rollbackError.value = ''
-  manualTab.value = 'script'
+  manualTab.value = isDockerDeployment.value ? 'docker' : 'script'
 }
 
 async function toggleRollbackPanel() {
@@ -843,7 +847,7 @@ function formatPublishedAt(publishedAt: string): string {
 
 async function handleRollback() {
   if (!isAdmin.value) return
-  if (rollingBack.value || !selectedRollbackVersion.value) return
+  if (isDockerDeployment.value || rollingBack.value || !selectedRollbackVersion.value) return
 
   rollingBack.value = true
   rollbackError.value = ''

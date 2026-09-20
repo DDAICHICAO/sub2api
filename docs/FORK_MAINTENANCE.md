@@ -103,3 +103,14 @@ docker compose -f docker-compose.yml -f compose.proxy.yml up -d --no-deps --pull
 ```
 
 不要执行 `down -v`、清空持久化目录、重建数据库或重置初始化配置。切换前后比较受保护表的记录数/哈希、挂载和数据库/Redis/Caddy 容器 ID。回滚只需恢复备份的 Compose/.env 并用旧镜像重建应用；有迁移时须另行评估数据库恢复，不能盲目覆盖运行中的数据。
+
+## Docker 更新与版本核验
+
+Docker 容器必须通过固定版本镜像重建，禁止在线替换容器内二进制（更新和回退均适用）。后台返回 `deployment_mode=docker` 时只提供镜像操作说明，直接调用更新或回退接口返回 `DOCKER_IMAGE_UPDATE_REQUIRED`。
+
+1. 在部署目录备份 Compose 文件。将应用 `image` 改为目标版本，例如 `ghcr.io/ddaichicao/sub2api:0.2.10`。
+2. 检查 `.env` 的 `COMPOSE_FILE`、命令行 `-f` 及覆盖文件；覆盖文件中的旧镜像会覆盖主文件。运行 `docker compose config --images`，确认最终应用镜像符合目标才继续。
+3. `docker compose pull sub2api` 成功后运行 `docker compose up -d --no-deps sub2api`，仅重建应用。
+4. 核对 `docker compose ps sub2api`、`docker compose exec -T sub2api /app/sub2api --version` 和后台实际服务版本一致，并检查公网健康与既有认证请求路径。
+
+裸二进制部署保留原地更新能力。网页更新成功不等于 Docker 镜像已更新；容器重建会丢弃容器可写层中的二进制替换，因此不能仅根据 `docker ps` 或历史使用记录推断运行版本及模型路由。
