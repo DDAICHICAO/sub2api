@@ -29,9 +29,7 @@ func (r *capacityShedAccountRepoStub) SetTempUnschedulable(_ context.Context, _ 
 	return nil
 }
 
-// 上游容量降载是请求级信号：故障因素（客户端身份、模型容量）与账号无关，
-// 同账号重试用尽后不得把账号临时摘掉——否则一个被降载的请求会顺着 failover
-// 把整池账号逐个封禁，而每个账号都会以同一个错误失败。
+// 容量拒绝不证明凭据失效；当前请求换号时不应把整池账号永久或临时禁用。
 func TestTempUnscheduleRetryableErrorSkipsRequestScopedTransient(t *testing.T) {
 	t.Run("请求级瞬时故障不写账号状态", func(t *testing.T) {
 		repo := &capacityShedAccountRepoStub{}
@@ -61,14 +59,14 @@ func TestTempUnscheduleRetryableErrorSkipsRequestScopedTransient(t *testing.T) {
 	})
 }
 
-// 非池模式账号同样要先在同账号重试：换号不改变降载因素。
-func TestStreamFailedEventCapacityShedRetriesOnSameAccount(t *testing.T) {
+// 容量错误应立即交给调度器尝试其他账号，避免重复命中同一账号。
+func TestStreamFailedEventCapacityShedSwitchesAccount(t *testing.T) {
 	nonPool := &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
 
 	for _, code := range []string{"server_is_overloaded", "slow_down"} {
 		payload := []byte(`{"type":"response.failed","response":{"error":{"code":"` + code + `"}}}`)
 		require.True(t, isOpenAIUpstreamCapacityShedEvent(payload), code)
-		require.True(t, openAIStreamFailedEventRetryableOnSameAccount(nonPool, payload, "overloaded"), code)
+		require.False(t, openAIStreamFailedEventRetryableOnSameAccount(nonPool, payload, "overloaded"), code)
 	}
 
 	// 非降载的 failed 事件在非池模式下仍不做同账号重试，避免放大改动面。
@@ -87,7 +85,7 @@ func TestOpenAIHTTPCapacityShedIsRequestScopedForOAuthAccounts(t *testing.T) {
 		false,
 	)
 
-	require.True(t, failoverErr.RetryableOnSameAccount)
+	require.False(t, failoverErr.RetryableOnSameAccount)
 	require.True(t, failoverErr.RequestScopedTransient)
 
 	repo := &capacityShedAccountRepoStub{}
@@ -131,6 +129,12 @@ func TestOpenAIStreamErrorFrameDoesNotStartClientOutput(t *testing.T) {
 		{`{"type":"response.reasoning_summary_part.added","part":{"type":"summary_text","text":"thinking"}}`, "response.reasoning_summary_part.added", true},
 		{`{"type":"response.content_part.added","part":{"type":"output_text","text":""}}`, "response.content_part.added", false},
 		{`{"type":"response.output_text.delta","delta":"hi"}`, "response.output_text.delta", true},
+		{`{"type":"codex.response.metadata","headers":{}}`, "codex.response.metadata", false},
+		{`{"type":"codex.rate_limits"}`, "codex.rate_limits", false},
+		{`{"type":"keepalive"}`, "keepalive", false},
+		{`{"type":"response.output_item.added","item":{"type":"web_search_call","status":"in_progress"}}`, "response.output_item.added", true},
+		{`{"type":"response.shell_call_output_content.delta","delta":"executed"}`, "response.shell_call_output_content.delta", true},
+		{`{"type":"future.event"}`, "future.event", true},
 		{`[DONE]`, "", true},
 	}
 	for _, tc := range cases {
@@ -144,6 +148,12 @@ func TestOpenAIStreamMetadataPreambleAndMessageOnlyOverloadFailOver(t *testing.T
 	stream := strings.Join([]string{
 		"event: response.created",
 		`data: {"type":"response.created","response":{"id":"resp_1","metadata":{"padding":"` + largeMetadata + `"}}}`,
+		"",
+		`data: {"type":"codex.response.metadata","headers":{"x-codex-turn-state":"opaque"}}`,
+		"",
+		`data: {"type":"codex.rate_limits","rate_limits":{}}`,
+		"",
+		`data: {"type":"keepalive"}`,
 		"",
 		"event: response.output_item.added",
 		`data: {"type":"response.output_item.added","item":{"type":"reasoning","summary":[]}}`,
@@ -193,7 +203,7 @@ func TestOpenAIStreamMetadataPreambleAndMessageOnlyOverloadFailOver(t *testing.T
 			require.Error(t, err)
 			var failoverErr *UpstreamFailoverError
 			require.ErrorAs(t, err, &failoverErr)
-			require.True(t, failoverErr.RetryableOnSameAccount)
+			require.False(t, failoverErr.RetryableOnSameAccount)
 			require.True(t, failoverErr.RequestScopedTransient)
 			require.Equal(t, http.StatusServiceUnavailable, failoverErr.ClientStatusCode)
 			require.Contains(t, failoverErr.ClientMessage, "servers are currently overloaded")
@@ -204,7 +214,7 @@ func TestOpenAIStreamMetadataPreambleAndMessageOnlyOverloadFailOver(t *testing.T
 }
 
 // 回归用例（真实上游降载序列）：created → in_progress → error 帧 → response.failed。
-// 期望仍然走 pre-output failover（同账号重试 + 请求级瞬时标记），且不向客户端写出任何字节。
+// 期望走 pre-output failover（立即换号 + 请求级瞬时标记），且不向客户端写出任何字节。
 func TestOpenAIStreamCapacityShedErrorFramePrecedingFailedStillFailsOver(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
@@ -239,7 +249,7 @@ func TestOpenAIStreamCapacityShedErrorFramePrecedingFailedStillFailsOver(t *test
 	require.Error(t, err)
 	var failoverErr *UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
-	require.True(t, failoverErr.RetryableOnSameAccount)
+	require.False(t, failoverErr.RetryableOnSameAccount)
 	require.True(t, failoverErr.RequestScopedTransient)
 	require.False(t, c.Writer.Written())
 	require.Empty(t, rec.Body.String())
