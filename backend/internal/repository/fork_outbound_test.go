@@ -21,7 +21,7 @@ func TestForkOutboundHeadersAtNetworkBoundary(t *testing.T) {
 	req.Header.Set("X-Request-Id", "retain-me")
 	resp, err := NewHTTPUpstream(nil).Do(req, "", 1, 1)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { require.NoError(t, resp.Body.Close()) }()
 	headers := <-received
 	require.Empty(t, headers.Get("X-Sub2API-Grok-Client-Tool-Cache"))
 	require.Empty(t, headers.Get("X-Sub2API-Debug"))
