@@ -18,6 +18,16 @@ let timer: ReturnType<typeof setTimeout> | undefined
 let disposed = false
 let completedJob = ''
 
+function isNewerVersion(version: string | undefined): boolean {
+  if (!version || !/^\d+\.\d+\.\d+$/.test(version) || !/^\d+\.\d+\.\d+$/.test(props.currentVersion)) return false
+  const target = version.split('.').map(Number)
+  const current = props.currentVersion.split('.').map(Number)
+  for (let index = 0; index < target.length; index++) {
+    if (target[index] !== current[index]) return target[index] > current[index]
+  }
+  return false
+}
+
 function schedule() {
   clearTimeout(timer)
   if (!disposed) timer = setTimeout(() => { void refresh() }, 3000)
@@ -36,7 +46,7 @@ async function refresh() {
     }
     state.value = result
     reconnecting.value = false
-    if (result.stage === 'completed' && result.job_id && completedJob !== result.job_id && result.version !== props.currentVersion) {
+    if (result.stage === 'completed' && result.job_id && completedJob !== result.job_id && isNewerVersion(result.version)) {
       completedJob = result.job_id
       emit('completed')
     }

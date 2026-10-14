@@ -11,6 +11,13 @@ afterEach(() => { vi.clearAllTimers(); vi.useRealTimers() })
 const props = { currentVersion: '0.2.18', latestVersion: '0.2.19', hasUpdate: true, manualCommand: 'docker compose pull sub2api' }
 
 describe('Docker update panel', () => {
+  it('ignores an older completed job after a manual image upgrade', async () => {
+    mocks.status.mockResolvedValue({ available: true, active: false, stage: 'completed', job_id: 'older-job', version: '0.2.17' })
+    const wrapper = mount(DockerUpdatePanel, { props })
+    await flushPromises()
+    expect(wrapper.emitted('completed')).toBeUndefined()
+    wrapper.unmount()
+  })
   it('does not reload again for a job already reflected by the running version', async () => {
     mocks.status.mockResolvedValue({ available: true, active: false, stage: 'completed', job_id: 'old-job', version: '0.2.18' })
     const wrapper = mount(DockerUpdatePanel, { props })
