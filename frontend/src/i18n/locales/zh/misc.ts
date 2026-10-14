@@ -19,6 +19,25 @@ export default {
 
   // Version Badge
   version: {
+    dockerJob: {
+      connecting: '正在连接更新服务…',
+      idle: '镜像在线更新已就绪',
+      queued: '更新任务已提交',
+      pulling: '正在拉取并校验新镜像…',
+      backing_up: '正在备份数据库和部署配置…',
+      recreating: '正在切换应用容器，连接会短暂中断…',
+      verifying: '正在校验服务与版本一致性…',
+      completed: '更新完成，版本校验通过',
+      rolling_back: '新版本未通过校验，正在恢复原镜像…',
+      rolled_back: '更新未成功，已恢复原镜像。数据库备份已保留。',
+      failed: '更新失败，请检查宿主机更新服务日志。备份已保留。',
+      interrupted: '更新任务被中断，请检查宿主机状态后重试。',
+      reconnecting: '正在等待服务恢复连接…',
+      unavailable: '宿主机尚未启用在线更新服务，需要先安装一次更新组件。',
+      hint: '自动备份后更新镜像并重启应用，期间连接会短暂中断。',
+      refresh: '刷新更新状态',
+      startUncertain: '提交结果尚未确认，正在查询更新任务，请勿重复操作。',
+    },
     currentVersion: '当前版本',
     latestVersion: '最新版本',
     upToDate: '已是最新版本',

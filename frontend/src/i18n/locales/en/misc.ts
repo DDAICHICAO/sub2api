@@ -19,6 +19,25 @@ export default {
 
   // Version Badge
   version: {
+    dockerJob: {
+      connecting: 'Connecting to the host updater…',
+      idle: 'Image updates are ready',
+      queued: 'Update queued',
+      pulling: 'Pulling and verifying the new image…',
+      backing_up: 'Backing up the database and deployment configuration…',
+      recreating: 'Replacing the application container; a brief interruption is expected…',
+      verifying: 'Checking application health and version consistency…',
+      completed: 'Update complete; version verified',
+      rolling_back: 'Verification failed; restoring the previous image…',
+      rolled_back: 'Update failed. Previous image restored; database backup retained.',
+      failed: 'Update failed. Check the host updater journal. Backups are retained.',
+      interrupted: 'Update interrupted. Check the host before retrying.',
+      reconnecting: 'Waiting for the service to reconnect…',
+      unavailable: 'Install the host updater once to enable online image updates.',
+      hint: 'The updater backs up data, replaces the image and restarts the app. Expect a brief interruption.',
+      refresh: 'Refresh update status',
+      startUncertain: 'Submission is not yet confirmed. Checking the job; avoid repeated clicks.',
+    },
     currentVersion: 'Current Version',
     latestVersion: 'Latest Version',
     upToDate: "You're running the latest version.",

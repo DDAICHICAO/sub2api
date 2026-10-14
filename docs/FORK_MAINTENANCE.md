@@ -106,6 +106,8 @@ docker compose -f docker-compose.yml -f compose.proxy.yml up -d --no-deps --pull
 
 ## Docker 更新与版本核验
 
+自有 0.2.18 起可安装 [宿主机更新服务](../deploy/docker-updater/README.md)，恢复后台一键更新，同时通过 Compose 重建保证镜像和程序版本一致。未安装时仍显示手动更新说明。首次启用需一次镜像升级，新组件不会修改旧容器的页面资源。
+
 Docker 容器必须通过固定版本镜像重建，禁止在线替换容器内二进制（更新和回退均适用）。后台返回 `deployment_mode=docker` 时只提供镜像操作说明，直接调用更新或回退接口返回 `DOCKER_IMAGE_UPDATE_REQUIRED`。
 
 1. 在部署目录备份 Compose 文件。将应用 `image` 改为目标版本，例如 `ghcr.io/ddaichicao/sub2api:0.2.10`。

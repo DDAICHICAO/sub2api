@@ -115,7 +115,15 @@
               </div>
 
               <!-- Priority 1: Update error (must check before hasUpdate) -->
-              <div v-if="updateError" class="space-y-2">
+              <DockerUpdatePanel
+                v-if="isDockerDeployment && isReleaseBuild && hasUpdate"
+                :current-version="currentVersion"
+                :latest-version="latestVersion"
+                :has-update="hasUpdate"
+                :manual-command="dockerUpdateCommand"
+                @completed="handleDockerUpdateCompleted"
+              />
+              <div v-else-if="updateError" class="space-y-2">
                 <div
                   class="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800/50 dark:bg-red-900/20"
                 >
@@ -663,6 +671,7 @@ import {
 } from '@/api/admin/system'
 import { useClipboard } from '@/composables/useClipboard'
 import Icon from '@/components/icons/Icon.vue'
+import DockerUpdatePanel from './DockerUpdatePanel.vue'
 
 const GITHUB_REPO = 'DDAICHICAO/sub2api'
 // GHCR image published by this fork (tags carry no "v" prefix, e.g. ghcr.io/ddaichicao/sub2api:0.1.146)
@@ -791,6 +800,11 @@ async function handleUpdate() {
   } finally {
     updating.value = false
   }
+}
+
+function handleDockerUpdateCompleted() {
+  appStore.clearVersionCache()
+  window.location.reload()
 }
 
 function resetRollbackState() {

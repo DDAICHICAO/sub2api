@@ -18,8 +18,9 @@ import (
 
 // SystemHandler handles system-related operations
 type SystemHandler struct {
-	updateSvc systemUpdateService
-	lockSvc   *service.SystemOperationLockService
+	updateSvc     systemUpdateService
+	lockSvc       *service.SystemOperationLockService
+	dockerUpdater systemDockerUpdater
 }
 
 // systemUpdateTimeout bounds a full in-place update or rollback: the release
@@ -54,8 +55,9 @@ type systemUpdateService interface {
 // NewSystemHandler creates a new SystemHandler
 func NewSystemHandler(updateSvc systemUpdateService, lockSvc *service.SystemOperationLockService) *SystemHandler {
 	return &SystemHandler{
-		updateSvc: updateSvc,
-		lockSvc:   lockSvc,
+		updateSvc:     updateSvc,
+		lockSvc:       lockSvc,
+		dockerUpdater: service.NewDockerUpdater("/app/data/.updater/control.sock"),
 	}
 }
 

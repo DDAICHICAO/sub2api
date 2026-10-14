@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/stores', () => ({ useAuthStore: () => ({ isAdmin: true }), useAppStore: () => mocks.app }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (s: string) => s }) }))
-vi.mock('@/api/admin/system', () => ({ performUpdate: mocks.update, rollback: mocks.rollback, restartService: vi.fn(), getRollbackVersions: vi.fn(async () => ({ versions: [{ version: '0.2.8', published_at: '', html_url: '' }] })) }))
+vi.mock('@/api/admin/system', () => ({ getDockerUpdateStatus: vi.fn(async () => ({ available: false, active: false, stage: 'unavailable' })), startDockerUpdate: vi.fn(), performUpdate: mocks.update, rollback: mocks.rollback, restartService: vi.fn(), getRollbackVersions: vi.fn(async () => ({ versions: [{ version: '0.2.8', published_at: '', html_url: '' }] })) }))
 vi.mock('@/composables/useClipboard', () => ({ useClipboard: () => ({ copied: false, copyToClipboard: vi.fn() }) }))
 
 beforeEach(() => { vi.clearAllMocks(); mocks.app.deploymentMode = 'docker'; mocks.app.hasUpdate = true })
@@ -16,6 +16,7 @@ describe('Docker version operations', () => {
   it('offers a pinned image recipe and no binary update or rollback action', async () => {
     let w = mount(VersionBadge, { global: { stubs: { Icon: true } } })
     await w.find('button').trigger('click')
+    await flushPromises()
     expect(w.text()).toContain('image: ghcr.io/ddaichicao/sub2api:0.2.10')
     expect(w.text()).toContain('docker compose config --images')
     expect(w.text()).toContain('docker compose up -d --no-deps sub2api')

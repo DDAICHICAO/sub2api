@@ -46,6 +46,27 @@ export interface UpdateResult {
   need_restart: boolean
 }
 
+export interface DockerUpdateStatus {
+  available: boolean
+  active: boolean
+  stage: string
+  job_id?: string
+  version?: string
+}
+
+export async function getDockerUpdateStatus(): Promise<DockerUpdateStatus> {
+  const { data } = await apiClient.get<DockerUpdateStatus>('/admin/system/docker-update', { timeout: 8000 })
+  return data
+}
+
+export async function startDockerUpdate(): Promise<DockerUpdateStatus> {
+  const { data } = await apiClient.post<DockerUpdateStatus>('/admin/system/docker-update', undefined, {
+    timeout: 45000,
+    headers: { 'Idempotency-Key': `docker-update-${crypto.randomUUID()}` }
+  })
+  return data
+}
+
 export interface RollbackVersionInfo {
   version: string
   published_at: string
