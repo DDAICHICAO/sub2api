@@ -72,6 +72,9 @@ const (
 
 // OpenAI allowed headers whitelist (for non-passthrough).
 var openaiAllowedHeaders = map[string]bool{
+	"session-id":              true,
+	"thread-id":               true,
+	"x-client-request-id":     true,
 	"accept-language":         true,
 	"content-type":            true,
 	"conversation_id":         true,
@@ -90,6 +93,9 @@ var openaiAllowedHeaders = map[string]bool{
 // OpenAI passthrough allowed headers whitelist.
 // 透传模式下仅放行这些低风险请求头，避免将非标准/环境噪声头传给上游触发风控。
 var openaiPassthroughAllowedHeaders = map[string]bool{
+	"session-id":              true,
+	"thread-id":               true,
+	"x-client-request-id":     true,
 	"accept":                  true,
 	"accept-language":         true,
 	"content-type":            true,

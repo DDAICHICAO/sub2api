@@ -1150,15 +1150,17 @@ func TestForwardAsAnthropic_OAuthRestoresCodexIdentityHeaders(t *testing.T) {
 
 	const tuiUA = "codex-tui/9.9.9 (Mac OS X 14.0; arm64) iTerm (codex-tui; 9.9.9)"
 	const vscodeUA = "codex_vscode/9.9.9 (Mac OS X 14.0; arm64) vscode (codex_vscode; 9.9.9)"
-	// messages 桥接路径同样强制统一出站身份：三类客户端身份都收敛到规范身份。
+	// Bridge requests preserve supported client identity and use the fallback for other clients.
 	tests := []struct {
 		name       string
 		userAgent  string
 		originator string
+		wantUA     string
+		wantOrigin string
 	}{
-		{name: "官方vscode身份", userAgent: vscodeUA, originator: "opencode"},
-		{name: "TUI身份", userAgent: tuiUA, originator: "opencode"},
-		{name: "第三方UA", userAgent: "third-party-client/1.0.0", originator: "opencode"},
+		{name: "官方vscode身份", userAgent: vscodeUA, originator: "opencode", wantUA: vscodeUA, wantOrigin: "codex_vscode"},
+		{name: "TUI身份", userAgent: tuiUA, originator: "opencode", wantUA: tuiUA, wantOrigin: "codex-tui"},
+		{name: "第三方UA", userAgent: "third-party-client/1.0.0", originator: "opencode", wantUA: codexCLIUserAgent, wantOrigin: openai.CodexDefaultOriginator},
 	}
 
 	for _, tt := range tests {
@@ -1191,7 +1193,7 @@ func TestForwardAsAnthropic_OAuthRestoresCodexIdentityHeaders(t *testing.T) {
 			result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "gpt-5.4")
 			require.NoError(t, err)
 			require.NotNil(t, result)
-			requireOpenAIMessagesCodexIdentity(t, upstream.lastReq, codexCLIUserAgent, openai.CodexDefaultOriginator)
+			requireOpenAIMessagesCodexIdentity(t, upstream.lastReq, tt.wantUA, tt.wantOrigin)
 		})
 	}
 }
@@ -1546,7 +1548,7 @@ func requireOpenAIMessagesCodexIdentity(t *testing.T, req *http.Request, wantUse
 	require.NotNil(t, req)
 	require.Equal(t, wantUserAgent, req.Header.Get("User-Agent"))
 	require.Equal(t, wantOriginator, req.Header.Get("originator"))
-	require.Equal(t, codexCLIVersion, req.Header.Get("version"))
+	require.Equal(t, openai.CodexUserAgentVersion(wantUserAgent), req.Header.Get("version"))
 	require.Equal(t, "responses=experimental", req.Header.Get("OpenAI-Beta"))
 }
 

@@ -134,29 +134,11 @@ func hasOpenAICodexBetaFeaturesHeader(h http.Header) bool {
 	return false
 }
 
-// applyOpenAICodexBetaFeatures 按真实 Codex 的会话级行为补注
-// x-codex-beta-features。
-//
-// codex 侧规则（codex-rs：session/mod.rs build_model_client_beta_features_header
-// 组装、client.rs build_responses_headers 附加）：该头是**会话级常量**，挂在
-// /responses、WS 握手、/responses/compact 三处的**每一个**请求上，而不是只挂
-// 压缩回合。其内容是"已启用且需要 advertise 的 feature 列表"，RemoteCompactionV2
-// 被特判 advertise；实测默认安装下没有任何 Experimental 特性默认开启，
-// 因此默认 Codex 的头值恰好就是单个 "remote_compaction_v2"。
-//
-// 网关据此对齐：
-//   - 原生 v2 压缩回合（body 带 compaction_trigger 实锤）：无论账号类型都确保
-//     v2 在列，覆盖中间网关裁剪 token 的情形（#5586）；
-//   - ChatGPT codex 上游（OAuth）的其余请求：客户端**未**声明该头时补成默认
-//     Codex 形态，消除"仅压缩回合才带该头"这种真实 Codex 不会产生的模式；
-//   - 客户端已声明该头：原样保留。非空但不含 v2 表示用户显式关闭了该特性，
-//     网关不得替其改写能力声明；
-//   - 非 OAuth 上游（API Key/第三方兼容网关）：不做会话级注入，只保留压缩回合
-//     的那一条，避免向非 Codex 后端撒 Codex 专属头。
-//
-// 已知无解的歧义：用户关掉 v2 且无其他特性时，真实 Codex 同样不发该头，与"老
-// 客户端"在线型上不可区分，此时按默认形态补注。该用户的 legacy 压缩端点本就
-// 已被上游下线（404），不存在可回退的正确行为。
+// applyOpenAICodexBetaFeatures preserves the client's advertised capability set,
+// including an absent header on supported Codex clients (codex-rs/core/src/client.rs,
+// build_responses_headers). A native compaction_trigger proves that v2 is in use
+// and still ensures its negotiation token. Requests without a supported Codex
+// identity retain the legacy OAuth compatibility default; API-key backends do not.
 func applyOpenAICodexBetaFeatures(c *gin.Context, account *Account, h http.Header) {
 	if h == nil {
 		return
@@ -170,6 +152,14 @@ func applyOpenAICodexBetaFeatures(c *gin.Context, account *Account, h http.Heade
 	}
 	if hasOpenAICodexBetaFeaturesHeader(h) {
 		return
+	}
+	// Official clients omit this header when no advertised feature is enabled.
+	// Preserve that choice instead of claiming support for remote compaction v2.
+	// Check the inbound identity: the outbound fallback is also Codex-shaped.
+	if c != nil && c.Request != nil {
+		if _, ok := codexClientIdentityFromUA(c.Request.UserAgent()); ok {
+			return
+		}
 	}
 	h.Set("x-codex-beta-features", openAIRemoteCompactionV2Feature)
 }

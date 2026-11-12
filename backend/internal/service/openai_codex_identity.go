@@ -43,9 +43,8 @@ func buildCodexCLIUserAgent(version string) string {
 
 // codexIdentityEnforcement 控制 enforceCodexIdentityHeaders 是否强制统一出站身份，
 // 由 gateway.disable_codex_identity_enforcement 在服务构造时取反发布。
-// 默认开启：上游会按客户端身份进行风控分层，命中风险身份的请求会拿到
-// HTTP 200 + 流内 server_is_overloaded，本次请求即失败；强制统一出口可确保没有
-// 请求带着第三方或陈旧身份出站。关闭后退回「仅按最终 UA 配对 originator」的收口语义。
+// 默认开启：保留受支持的 Codex 客户端身份，仅对缺失/非法身份和管理员显式覆写
+// 使用规范身份。开关关闭时保留历史配对兼容行为；它不是账号认证或风控判定。
 var codexIdentityEnforcement = func() *atomic.Bool {
 	v := &atomic.Bool{}
 	v.Store(true)
@@ -208,10 +207,24 @@ func enforceCodexIdentityHeaders(h http.Header) {
 	enforceCodexIdentityHeadersWithUA(h, "")
 }
 
-// enforceCodexIdentityHeadersWithUA 强制统一 OAuth 出站身份：User-Agent / originator / version
-// 一律改写为网关的规范身份，客户端自报身份不参与构造。上游会按客户端身份进行风控分层，
-// 命中风险身份的请求会拿到 HTTP 200 + 流内 server_is_overloaded；统一出口可确保没有请求带着
-// 第三方或陈旧身份出站，也天然满足 originator 与 UA 首段配套的上游校验（issue #3901）。
+// codexClientIdentityFromUA accepts a supported Codex-shaped identity without
+// changing its build, OS or terminal suffix. This is syntax validation, not proof
+// of client authenticity. Unsupported/obsolete identities use the compatibility fallback.
+func codexClientIdentityFromUA(ua string) (codexOutboundIdentity, bool) {
+	originator, pairedUA, ok := openai.PairCodexClientIdentity(ua)
+	if !ok {
+		return codexOutboundIdentity{}, false
+	}
+	version := NormalizeCodexClientVersion(openai.CodexUserAgentVersion(pairedUA))
+	if version == "" || CompareVersions(version, codexUpstreamMinVersion) < 0 {
+		return codexOutboundIdentity{}, false
+	}
+	return codexOutboundIdentity{userAgent: pairedUA, originator: originator, version: version}, true
+}
+
+// enforceCodexIdentityHeadersWithUA keeps a supported client's actual identity.
+// Auto-synced versions are a fallback, not a reason to relabel an older supported
+// client as a newer build. TUI/Desktop/VS Code identities are not converted to CLI.
 //
 // overrideUA 是账号级自定义 User-Agent：管理员的显式配置仍然生效，但只贡献客户端名与
 // OS / 架构 / 终端指纹——版本段与 originator 都由规范身份重建，不允许出现自相矛盾或陈旧的身份。
@@ -230,7 +243,10 @@ func enforceCodexIdentityHeadersWithUA(h http.Header, overrideUA string) {
 		pairCodexIdentityHeaders(h)
 		return
 	}
-	identity := resolveCodexOutboundIdentity(overrideUA)
+	identity, clientOK := codexClientIdentityFromUA(h.Get("user-agent"))
+	if overrideUA != "" || !clientOK {
+		identity = resolveCodexOutboundIdentity(overrideUA)
+	}
 	h.Set("user-agent", identity.userAgent)
 	h.Set("originator", identity.originator)
 	h.Set("version", identity.version)

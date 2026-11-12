@@ -18,9 +18,7 @@ func requireOpenAICodexProbeHeaders(t *testing.T, h http.Header) {
 	require.NotEmpty(t, h.Get("X-Codex-Window-ID"))
 }
 
-// 强制统一出口：无论客户端自报什么身份，OAuth 出站的 User-Agent / originator / version
-// 一律是网关规范身份。上游在容量紧张时按客户端身份分优先级降载，统一出口确保没有请求
-// 带着第三方或陈旧身份出站。
+// Missing identity uses the gateway fallback; supported clients retain their own identity.
 func TestEnsureCodexIdentityHeaders(t *testing.T) {
 	t.Run("补齐缺失身份头", func(t *testing.T) {
 		h := make(http.Header)
@@ -34,7 +32,7 @@ func TestEnsureCodexIdentityHeaders(t *testing.T) {
 		require.Equal(t, "responses=experimental", h.Get("OpenAI-Beta"))
 	})
 
-	t.Run("官方非 CLI 客户端身份同样被统一", func(t *testing.T) {
+	t.Run("官方非 CLI 客户端身份被保留", func(t *testing.T) {
 		h := make(http.Header)
 		h.Set("user-agent", "codex_vscode/9.9.9 (Mac OS X 14.0; arm64) vscode (codex_vscode; 9.9.9)")
 		h.Set("version", "9.9.9")
@@ -43,9 +41,9 @@ func TestEnsureCodexIdentityHeaders(t *testing.T) {
 		ensureCodexIdentityHeaders(h)
 		enforceCodexIdentityHeaders(h)
 
-		require.Equal(t, openai.CodexDefaultOriginator, h.Get("originator"))
-		require.Equal(t, codexCLIUserAgent, h.Get("user-agent"))
-		require.Equal(t, codexCLIVersion, h.Get("version"))
+		require.Equal(t, "codex_vscode", h.Get("originator"))
+		require.Equal(t, "codex_vscode/9.9.9 (Mac OS X 14.0; arm64) vscode (codex_vscode; 9.9.9)", h.Get("user-agent"))
+		require.Equal(t, "9.9.9", h.Get("version"))
 		require.Equal(t, "responses=experimental", h.Get("OpenAI-Beta"))
 	})
 }
@@ -56,6 +54,7 @@ func TestEnforceCodexIdentityHeaders(t *testing.T) {
 		originator string
 		userAgent  string
 		version    string
+		preserve   bool
 	}{
 		{
 			name:       "TUI 身份",
@@ -71,6 +70,7 @@ func TestEnforceCodexIdentityHeaders(t *testing.T) {
 			name:       "官方 vscode 身份",
 			originator: "codex_vscode",
 			userAgent:  "codex_vscode/1.2.3 (Ubuntu 22.4.0; x86_64) vscode (codex_vscode; 1.2.3)",
+			preserve:   true,
 		},
 		{
 			name:       "第三方客户端身份",
@@ -113,6 +113,12 @@ func TestEnforceCodexIdentityHeaders(t *testing.T) {
 
 			enforceCodexIdentityHeaders(h)
 
+			if tt.preserve {
+				require.Equal(t, "codex_vscode", h.Get("originator"))
+				require.Equal(t, tt.userAgent, h.Get("user-agent"))
+				require.Equal(t, "1.2.3", h.Get("version"))
+				return
+			}
 			require.Equal(t, openai.CodexDefaultOriginator, h.Get("originator"))
 			require.Equal(t, codexCLIUserAgent, h.Get("user-agent"))
 			require.Equal(t, codexCLIVersion, h.Get("version"))

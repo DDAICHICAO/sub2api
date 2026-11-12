@@ -128,12 +128,20 @@ func applyCodexAccountIdentityFields(values map[string]any, account *Account, ap
 		return false
 	}
 	changed := false
+	threadID, _ := values["thread_id"].(string)
+	if threadID == "" {
+		threadID, _ = values["thread-id"].(string)
+	}
 	for _, field := range codexAccountIdentityFields {
 		raw, ok := values[field.name].(string)
 		if !ok || strings.TrimSpace(raw) == "" {
 			continue
 		}
-		next := scopeCodexAccountIdentityValue(account, apiKeyID, field.kind, raw)
+		kind := field.kind
+		if field.name == "x-client-request-id" && strings.TrimSpace(raw) == strings.TrimSpace(threadID) {
+			kind = "thread"
+		}
+		next := scopeCodexAccountIdentityValue(account, apiKeyID, kind, raw)
 		if next != raw {
 			values[field.name] = next
 			changed = true
@@ -253,6 +261,12 @@ func applyCodexAccountIdentityHeaders(headers http.Header, account *Account, api
 	if headers == nil || codexAccountIdentityNamespace(account) == "" {
 		return
 	}
+	// Codex uses thread-id as x-client-request-id in HTTP and WS. Preserve that
+	// relationship while retaining per-account/per-user namespace isolation.
+	threadID := strings.TrimSpace(headers.Get("thread-id"))
+	if threadID == "" {
+		threadID = strings.TrimSpace(headers.Get("thread_id"))
+	}
 	for _, field := range codexAccountIdentityFields {
 		// Underscore session/conversation headers are rebuilt separately from the
 		// prompt cache key by each request builder.
@@ -261,7 +275,11 @@ func applyCodexAccountIdentityHeaders(headers http.Header, account *Account, api
 		}
 		raw := strings.TrimSpace(headers.Get(field.name))
 		if raw != "" {
-			headers.Set(field.name, scopeCodexAccountIdentityValue(account, apiKeyID, field.kind, raw))
+			kind := field.kind
+			if field.name == "x-client-request-id" && raw == threadID {
+				kind = "thread"
+			}
+			headers.Set(field.name, scopeCodexAccountIdentityValue(account, apiKeyID, kind, raw))
 		}
 	}
 	if raw := strings.TrimSpace(headers.Get(openAIWSTurnMetadataHeader)); raw != "" {
