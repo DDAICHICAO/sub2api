@@ -3353,14 +3353,14 @@ func TestOpenAIBuildUpstreamRequestPreservesCodexIdentityHeaders(t *testing.T) {
 func TestOpenAIBuildUpstreamRequestOAuthOfficialClientOriginatorCompatibility(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// 强制统一出口：客户端自报的 originator / User-Agent 都不参与上游身份构造，
-	// 一律改写为网关规范身份，天然满足 originator 与 UA 首段配套的上游校验（issue #3901）。
+	// 保留受支持的 Desktop 身份；缺失、第三方或过旧身份仍走兼容兜底。
 	tests := []struct {
 		name       string
 		userAgent  string
 		originator string
+		preserve   bool
 	}{
-		{name: "official desktop ua", userAgent: "Codex Desktop/1.2.3"},
+		{name: "official desktop ua", userAgent: "Codex Desktop/0.167.2", preserve: true},
 		{
 			name:       "mismatched originator",
 			userAgent:  "codex_vscode/0.140.2 (Mac OS X 14.0; arm64) vscode (codex_vscode; 0.140.2)",
@@ -3396,6 +3396,12 @@ func TestOpenAIBuildUpstreamRequestOAuthOfficialClientOriginatorCompatibility(t 
 			isCodexCLI := openai.IsCodexOfficialClientByHeaders(c.GetHeader("User-Agent"), c.GetHeader("originator"))
 			req, err := svc.buildUpstreamRequest(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token", false, "", isCodexCLI)
 			require.NoError(t, err)
+			if tt.preserve {
+				require.Equal(t, "Codex Desktop", req.Header.Get("originator"))
+				require.Equal(t, tt.userAgent, req.Header.Get("User-Agent"))
+				require.Equal(t, "0.167.2", req.Header.Get("version"))
+				return
+			}
 			require.Equal(t, openai.CodexDefaultOriginator, req.Header.Get("originator"))
 			require.Equal(t, codexCLIUserAgent, req.Header.Get("User-Agent"))
 			require.Equal(t, codexCLIVersion, req.Header.Get("version"))

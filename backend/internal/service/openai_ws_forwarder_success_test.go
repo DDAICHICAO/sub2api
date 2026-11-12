@@ -874,14 +874,14 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthSanitizesInvalidNativeToolItemID
 func TestOpenAIGatewayService_Forward_WSv2_OAuthOriginatorCompatibility(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// WS 握手头与 HTTP 出站共用身份收口：同样强制统一为网关规范身份，
-	// 客户端自报的 originator / user-agent 不参与构造（issue #3901 的配对不变式自然满足）。
+	// WS 与 HTTP 一致：保留受支持的 Desktop 身份，其他测试覆盖过旧/缺失身份兜底。
 	tests := []struct {
 		name       string
 		userAgent  string
 		originator string
+		preserve   bool
 	}{
-		{name: "official desktop ua", userAgent: "Codex Desktop/1.2.3"},
+		{name: "official desktop ua", userAgent: "Codex Desktop/0.167.2", preserve: true},
 		{
 			name:       "mismatched originator",
 			userAgent:  "codex_vscode/0.140.2 (Mac OS X 14.0; arm64) vscode (codex_vscode; 0.140.2)",
@@ -956,6 +956,12 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthOriginatorCompatibility(t *testi
 			result, err := svc.Forward(context.Background(), c, account, body)
 			require.NoError(t, err)
 			require.NotNil(t, result)
+			if tt.preserve {
+				require.Equal(t, "Codex Desktop", captureDialer.lastHeaders.Get("originator"))
+				require.Equal(t, tt.userAgent, captureDialer.lastHeaders.Get("user-agent"))
+				require.Equal(t, "0.167.2", captureDialer.lastHeaders.Get("version"))
+				return
+			}
 			require.Equal(t, openai.CodexDefaultOriginator, captureDialer.lastHeaders.Get("originator"))
 			require.Equal(t, codexCLIUserAgent, captureDialer.lastHeaders.Get("user-agent"))
 			require.Equal(t, codexCLIVersion, captureDialer.lastHeaders.Get("version"))
